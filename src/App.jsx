@@ -7,6 +7,12 @@ const ACCOUNTS = ["DA", "KLG", "星組", "shiroiro"];
 const ACCT_COLORS = { DA: "#2563eb", KLG: "#7c3aed", "星組": "#dc2626", shiroiro: "#059669" };
 const yen = n => "¥" + Number(n).toLocaleString();
 
+const CATEGORIES = {
+  hot:          { label: "好調", sub: "CV≥5 & 高CVR", icon: "🔥", color: "#16a34a", bg: "#dcfce7" },
+  cold_low_cvr: { label: "不調", sub: "CV有 & 低CVR", icon: "⚠️", color: "#d97706", bg: "#fef3c7" },
+  cold_zero_cv: { label: "不調", sub: "配信有 & CV=0", icon: "🚨", color: "#dc2626", bg: "#fef2f2" },
+};
+
 function VideoModal({ src, onClose }) {
   if (!src) return null;
   return (
@@ -31,13 +37,15 @@ function VideoModal({ src, onClose }) {
   );
 }
 
-function AdCard({ ad, rank, type, meta, onPlay }) {
-  const isTop = type === "top";
+function AdCard({ ad, rank, catKey, meta, onPlay }) {
+  const cat = CATEGORIES[catKey];
   const m = meta || {};
   const imgSrc = m.image_url || m.thumbnail_url;
   const isVideo = m.is_video;
   const destUrl = m.destination_url;
   const [imgErr, setImgErr] = useState(false);
+  const isHot = catKey === "hot";
+  const isZero = catKey === "cold_zero_cv";
 
   return (
     <div style={{
@@ -50,9 +58,9 @@ function AdCard({ ad, rank, type, meta, onPlay }) {
       <div style={{position:"relative",height:180,background:"#f3f4f6",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
         <div style={{
           position:"absolute",top:8,left:8,zIndex:2,
-          background:isTop?"#22c55e":"#ef4444",color:"#fff",fontWeight:700,fontSize:11,
+          background:cat.color,color:"#fff",fontWeight:700,fontSize:11,
           padding:"2px 10px",borderRadius:12,fontFamily:"monospace",
-        }}>{isTop ? "🏆" : "💀"} #{rank}</div>
+        }}>{cat.icon} #{rank}</div>
         {isVideo && (
           <span style={{
             position:"absolute",top:8,right:8,zIndex:2,
@@ -80,7 +88,7 @@ function AdCard({ ad, rank, type, meta, onPlay }) {
             )}
           </>
         ) : (
-          <div style={{color:"#bbb",fontSize:11}}>{imgSrc === undefined ? "読込中..." : "No thumbnail"}</div>
+          <div style={{color:"#bbb",fontSize:11}}>読込中...</div>
         )}
       </div>
 
@@ -98,26 +106,63 @@ function AdCard({ ad, rank, type, meta, onPlay }) {
             display:"block",padding:"4px 8px",background:"#f9fafb",borderRadius:6,
             border:"1px solid #f3f4f6",
           }} title={destUrl}>
-            🔗 {destUrl.replace(/^https?:\/\//,"").slice(0,60)}{destUrl.length>68?"...":""}
+            🔗 {destUrl.replace(/^https?:\/\//,"").slice(0,55)}{destUrl.length>63?"...":""}
           </a>
         )}
 
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:4,marginTop:"auto"}}>
-          {[
-            {l:"CPO",v:yen(ad.cpo),hi:true},
-            {l:"消化",v:yen(ad.spend)},
-            {l:"CVR",v:ad.cvr+"%"},
-            {l:"CV",v:ad.cv+"件"},
-          ].map(({l,v,hi})=>(
-            <div key={l} style={{background:"#f9fafb",borderRadius:6,padding:"5px 8px"}}>
-              <div style={{fontSize:9,color:"#9ca3af"}}>{l}</div>
-              <div style={{
-                fontSize:hi?15:12,fontWeight:700,fontFamily:"monospace",
-                color:hi?(isTop?"#16a34a":"#dc2626"):"#374151",
-              }}>{v}</div>
-            </div>
-          ))}
+        <div style={{display:"grid",gridTemplateColumns: isZero ? "1fr 1fr" : "1fr 1fr",gap:4,marginTop:"auto"}}>
+          {isZero ? (
+            <>
+              <div style={{background:"#fef2f2",borderRadius:6,padding:"5px 8px"}}>
+                <div style={{fontSize:9,color:"#9ca3af"}}>消化</div>
+                <div style={{fontSize:15,fontWeight:700,fontFamily:"monospace",color:"#dc2626"}}>{yen(ad.spend)}</div>
+              </div>
+              <div style={{background:"#f9fafb",borderRadius:6,padding:"5px 8px"}}>
+                <div style={{fontSize:9,color:"#9ca3af"}}>クリック</div>
+                <div style={{fontSize:13,fontWeight:700,fontFamily:"monospace",color:"#374151"}}>{ad.clicks}回</div>
+              </div>
+              <div style={{background:"#fef2f2",borderRadius:6,padding:"5px 8px",gridColumn:"1/3"}}>
+                <div style={{fontSize:9,color:"#9ca3af"}}>CV</div>
+                <div style={{fontSize:15,fontWeight:700,fontFamily:"monospace",color:"#dc2626"}}>0件（金が燃えてる）</div>
+              </div>
+            </>
+          ) : (
+            [
+              {l:"CVR",v:ad.cvr+"%",hi:true},
+              {l:"CV",v:ad.cv+"件"},
+              {l:"CPO",v:ad.cpo ? yen(ad.cpo) : "-"},
+              {l:"消化",v:yen(ad.spend)},
+            ].map(({l,v,hi})=>(
+              <div key={l} style={{background: hi ? (isHot ? "#dcfce7" : "#fef3c7") : "#f9fafb",borderRadius:6,padding:"5px 8px"}}>
+                <div style={{fontSize:9,color:"#9ca3af"}}>{l}</div>
+                <div style={{
+                  fontSize:hi?15:12,fontWeight:700,fontFamily:"monospace",
+                  color:hi? cat.color :"#374151",
+                }}>{v}</div>
+              </div>
+            ))
+          )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function CategorySection({ catKey, ads, meta, onPlay }) {
+  const cat = CATEGORIES[catKey];
+  if (!ads || ads.length === 0) return null;
+  return (
+    <div style={{marginBottom:16}}>
+      <h3 style={{fontSize:13,fontWeight:600,color:cat.color,margin:"0 0 10px",display:"flex",alignItems:"center",gap:6}}>
+        <span style={{background:cat.bg,padding:"2px 8px",borderRadius:6,fontSize:11}}>
+          {cat.icon} {cat.label}
+        </span>
+        <span style={{fontSize:10,color:"#9ca3af",fontWeight:400}}>{cat.sub}</span>
+      </h3>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
+        {ads.map((ad,i)=>(
+          <AdCard key={ad.ad_id+catKey} ad={ad} rank={i+1} catKey={catKey} meta={meta[ad.ad_id]} onPlay={onPlay}/>
+        ))}
       </div>
     </div>
   );
@@ -128,8 +173,9 @@ function buildAccountData(rows) {
   for (const acct of ACCOUNTS) {
     const acctRows = rows.filter(r => r.account === acct);
     result[acct] = {
-      top: acctRows.filter(r => r.top_rank <= 3).sort((a,b) => a.top_rank - b.top_rank),
-      worst: acctRows.filter(r => r.worst_rank <= 3).sort((a,b) => a.worst_rank - b.worst_rank),
+      hot: acctRows.filter(r => r.category === "hot").sort((a,b) => a.rank - b.rank),
+      cold_low_cvr: acctRows.filter(r => r.category === "cold_low_cvr").sort((a,b) => a.rank - b.rank),
+      cold_zero_cv: acctRows.filter(r => r.category === "cold_zero_cv").sort((a,b) => a.rank - b.rank),
     };
   }
   return result;
@@ -144,7 +190,6 @@ export default function App() {
   const [syncInfo, setSyncInfo] = useState({});
   const [error, setError] = useState(null);
 
-  // Fetch ranking data
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -152,12 +197,11 @@ export default function App() {
       try {
         const res = await fetch(`${RANKING_API}?period=${period}`);
         const d = await res.json();
-        if (d.error) { setError(d.error); return; }
+        if (d.error) { setError(d.error); setLoading(false); return; }
         setSyncInfo({ latest_date: d.latest_date, latest_sync: d.latest_sync });
         const acctData = buildAccountData(d.data || []);
         setAccountData(acctData);
 
-        // Fetch thumbnails for all ad_ids
         const adIds = [...new Set((d.data || []).map(r => r.ad_id))];
         if (adIds.length > 0) {
           const thumbRes = await fetch(THUMB_API, {
@@ -185,10 +229,10 @@ export default function App() {
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12,marginBottom:24}}>
           <div>
             <h1 style={{fontSize:22,fontWeight:800,margin:0,color:"#111827"}}>
-              Meta広告 バナーTOP3 / WORST3
+              Meta広告 クリエイティブ分析
             </h1>
             <p style={{fontSize:12,color:"#9ca3af",margin:"4px 0 0"}}>
-              アカウント別 · CPO順 · 動画は▶クリックで再生
+              好調 / 不調 · アカウント別 · 動画は▶クリックで再生
               {syncInfo.latest_date && <span> · データ: {syncInfo.latest_date}まで</span>}
             </p>
           </div>
@@ -204,6 +248,17 @@ export default function App() {
           </div>
         </div>
 
+        {/* Legend */}
+        <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:20,padding:"10px 16px",background:"#fff",borderRadius:10,border:"1px solid #e5e7eb"}}>
+          {Object.entries(CATEGORIES).map(([k,c])=>(
+            <div key={k} style={{display:"flex",alignItems:"center",gap:6,fontSize:12}}>
+              <span style={{background:c.bg,padding:"1px 6px",borderRadius:4,fontSize:11}}>{c.icon}</span>
+              <span style={{fontWeight:600,color:c.color}}>{c.label}</span>
+              <span style={{color:"#9ca3af",fontSize:10}}>{c.sub}</span>
+            </div>
+          ))}
+        </div>
+
         {error && <p style={{color:"#dc2626",fontSize:12,background:"#fef2f2",padding:"8px 12px",borderRadius:8,marginBottom:16}}>⚠ {error}</p>}
 
         {loading ? (
@@ -215,43 +270,25 @@ export default function App() {
         ) : (
           ACCOUNTS.map(acct => {
             const d = accountData[acct];
-            if (!d || (d.top.length === 0 && d.worst.length === 0)) return null;
+            if (!d) return null;
+            const hasData = d.hot.length + d.cold_low_cvr.length + d.cold_zero_cv.length > 0;
+            if (!hasData) return null;
             const acColor = ACCT_COLORS[acct];
             return (
-              <div key={acct+period} style={{marginBottom:32}}>
+              <div key={acct+period} style={{marginBottom:36}}>
                 <div style={{
                   display:"flex",alignItems:"center",gap:8,marginBottom:14,
                   paddingBottom:8,borderBottom:"2px solid "+acColor+"22",
                 }}>
                   <div style={{width:8,height:8,borderRadius:"50%",background:acColor}}/>
                   <h2 style={{fontSize:16,fontWeight:700,margin:0,color:acColor}}>{acct}</h2>
+                  <span style={{fontSize:11,color:"#9ca3af"}}>
+                    好調{d.hot.length} / 不調(低CVR){d.cold_low_cvr.length} / 不調(CV0){d.cold_zero_cv.length}
+                  </span>
                 </div>
-
-                {d.top.length > 0 && (
-                  <div style={{marginBottom:16}}>
-                    <h3 style={{fontSize:13,fontWeight:600,color:"#16a34a",margin:"0 0 10px",display:"flex",alignItems:"center",gap:6}}>
-                      <span style={{background:"#dcfce7",padding:"2px 8px",borderRadius:6,fontSize:11}}>🏆 TOP 3</span>
-                    </h3>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
-                      {d.top.map((ad,i)=>(
-                        <AdCard key={ad.ad_id+period} ad={ad} rank={i+1} type="top" meta={meta[ad.ad_id]} onPlay={setVideoSrc}/>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {d.worst.length > 0 && (
-                  <div>
-                    <h3 style={{fontSize:13,fontWeight:600,color:"#dc2626",margin:"0 0 10px",display:"flex",alignItems:"center",gap:6}}>
-                      <span style={{background:"#fef2f2",padding:"2px 8px",borderRadius:6,fontSize:11}}>💀 WORST 3</span>
-                    </h3>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
-                      {d.worst.map((ad,i)=>(
-                        <AdCard key={ad.ad_id+period+"w"} ad={ad} rank={i+1} type="worst" meta={meta[ad.ad_id]} onPlay={setVideoSrc}/>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <CategorySection catKey="hot" ads={d.hot} meta={meta} onPlay={setVideoSrc}/>
+                <CategorySection catKey="cold_low_cvr" ads={d.cold_low_cvr} meta={meta} onPlay={setVideoSrc}/>
+                <CategorySection catKey="cold_zero_cv" ads={d.cold_zero_cv} meta={meta} onPlay={setVideoSrc}/>
               </div>
             );
           })
